@@ -6,10 +6,12 @@ How to INSTALL gym environment :
 
 
 RENDER :
+
 env.render('output.png') displays and save figure of current environement
 
 
-ACTIONS : actions_n
+ACTIONS : 
+
 actions_n is a list of n_agents actions
 a action from a agent is a numpy of shape : n_sites, n_sections, n_agents 
 Then action_n[i_prov] is the action of agent i_prov and 
@@ -26,13 +28,10 @@ ENVIRONMENTS :
 This gym env contains:
 
 A : 3 agents, 3 sites, 9 users 
-1. 
-2.
+1. env_3A_3S_9U-v1
+2. env_3A_3S_9U-v2
 
 
-B : 3 agents, 3 sites, x users 
-1. 
-to allows 
 
 
 
