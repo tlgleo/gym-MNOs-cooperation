@@ -8,9 +8,9 @@ import math
 import numpy as np
 from numpy.linalg import norm
 from scipy.spatial.distance import euclidean
-from utils import partition, random_users
+from utils import partition, random_users, create_observation, separate_images
 
-from utility_functions import basic_utility
+from utility_functions import basic_utility, basic_utility_V2, basic_exp_utility
 from kinematics import Kinematics, modifiy_position
 
 
@@ -67,6 +67,7 @@ class Env_Multi_Agent_MNO(gym.Env):
         self.min_shared = 0.02
         self.env_size = [[prov.n_sites, prov.n_sections] for prov in self.providers]
         self.limits = [(0, 10), (0, 10)]
+        self.colors_env = ["#dc5a3d", '#7eaa55', '#2c70ba', '#000000']
         self.utilities = None
 
         self.update_transactions()
@@ -89,7 +90,6 @@ class Env_Multi_Agent_MNO(gym.Env):
             self.indices_order_distance_user_site = self.compute_distances_increasing_user_sites()
             self.is_in_section_table = self.compute_is_in_section_table()
 
-
     def compute_distances_user_sites(self):
         # compute a list of lists of lists for distance between sites and users
         distances = []  # list of list of list : n_users x n_sites x n_sections x 1
@@ -105,9 +105,6 @@ class Env_Multi_Agent_MNO(gym.Env):
                 dist_list_user.append(dist_list_user_provIA)
             distances.append(dist_list_user)
         return distances
-
-
-
 
     def compute_distances_increasing_user_sites(self):
         # return the list of couple user/site (site = i_prov, i_site)
@@ -129,7 +126,6 @@ class Env_Multi_Agent_MNO(gym.Env):
                     values_distances_user.insert(i, dist)
         return indices
 
-
     def is_in_section(self, i_user, iA_prov, i_site, i_sec):
         # verifies if i_user is inside the section i_sec of the site i_site of provider iA_prov
 
@@ -146,7 +142,8 @@ class Env_Multi_Agent_MNO(gym.Env):
         dist = self.distances_users_sites[i_user][iA_prov][i_site]
 
         x = np.array([user_pos[0] - site_pos[0], user_pos[1] - site_pos[1]])
-        x/=dist
+
+        x= x/dist
 
         x_v0 = np.dot(x,v0)
         x_v0 = min(1,max(-1, x_v0))
@@ -178,7 +175,6 @@ class Env_Multi_Agent_MNO(gym.Env):
             result.append(list_users)
         return result
 
-
     def update_allocations_terminals(self):
         # update the number of terminals max that a provider accepts for each sites and section
         # just a element-wise product : number_max_per_section x affiliations_parts
@@ -188,7 +184,6 @@ class Env_Multi_Agent_MNO(gym.Env):
                     max_terminals = np.array(provider.number_terminals_per_section)[i_site][i_sec]
                     parts = np.array(provider.affiliations_parts[i_site][i_sec])
                     provider.affiliations[i_site][i_sec] = partition(max_terminals, parts) # partition function from utils
-
 
     def update_affiliations(self):
         # after some transactions, it is necessary to update the affiliations of users (which provider)
@@ -257,9 +252,6 @@ class Env_Multi_Agent_MNO(gym.Env):
         self.affiliations_users_sections = affiliations_users_sections
         self.affiliations_numbers_per_sites = affiliations_numbers_per_sites
 
-
-
-
     def transactions(self, liste_transactions):
         # transaction = list = [ident_provider, i_site, i_sec, list_parts]
         # list_parts = list of size n_agents whose sum = 1 : example = [0.6, 0.2, 0.2]
@@ -282,7 +274,8 @@ class Env_Multi_Agent_MNO(gym.Env):
                 label=False,
                 links = False,
                 utilities = None,
-                close = False):
+                close = False,
+                axis = False):
 
 
         x_lim = self.limits[0]
@@ -291,7 +284,7 @@ class Env_Multi_Agent_MNO(gym.Env):
         # display initial environment (without affiliations)
         scale = fig_size[0]/(x_lim[1])
 
-        colors = ['r', 'g', 'b', 'k']
+        colors = ['#dc5a3e', '#7faa55', '#2d70bb', 'k']
         fig, ax = plt.subplots(figsize=fig_size)
         ax.set_aspect('equal', adjustable='box')
 
@@ -322,10 +315,11 @@ class Env_Multi_Agent_MNO(gym.Env):
             positions_sites_iA = provider.positions_sites
             d = 0.07*scale
             for i_site, position_site in enumerate(positions_sites_iA):
-                ax.plot(position_site[0], position_site[1], colors[iA_prov] + '.', ms=15 * scale, marker='*')
+                ax.plot(position_site[0], position_site[1], color = colors[iA_prov], ms=15 * scale, marker='*')
                 if label:
-                    ax.text(position_site[0], position_site[1]+d, str(iA_prov)+' '+str(i_site),
-                            fontsize = 9*scale, fontstretch = 'ultra-condensed' ,horizontalalignment = 'center')
+                    pass
+                    #ax.text(position_site[0], position_site[1]+d, str(iA_prov)+' '+str(i_site),
+                            #fontsize = 9*scale, fontstretch = 'ultra-condensed' ,horizontalalignment = 'center')
 
                 if utilities is not None:
                    ax.text(position_site[0]+7* d, position_site[1] -5* d, str(utilities[iA_prov]),
@@ -346,14 +340,14 @@ class Env_Multi_Agent_MNO(gym.Env):
                     angle0 = offset_angle + i_sec * 360 / n_sec + 3*scale
                     angle1 = offset_angle + (i_sec + 1) * 360 / n_sec - 3*scale
 
-                    r = 0.25/scale
+                    r = 0.3/scale
                     for i_prov in range(self.n_agents):
 
-                        wdt = 0.40*scale* provider.affiliations_parts[i_site][i_sec][i_prov] * scale
+                        wdt = 0.30*scale* provider.affiliations_parts[i_site][i_sec][i_prov] * scale
 
                         color_prov = colors[i_prov]
                         annulus = matplotlib.patches.Wedge(pos_site, r+wdt, angle0, angle1, width=wdt,
-                                                           color=color_prov)
+                                                           color=color_prov, alpha =1)
 
                         if wdt > 0.01:
                             ax.add_patch(annulus)
@@ -389,10 +383,13 @@ class Env_Multi_Agent_MNO(gym.Env):
         for iU, user_pos in enumerate(self.positions_users):
             affi_provider = self.initial_affiliations[iU]
             d = 0.09*scale
-            ax.plot(user_pos[0], user_pos[1], colors[affi_provider] + '.', ms=10 * scale, alpha = 0.6)
+            ax.plot(user_pos[0], user_pos[1], color = colors[affi_provider], marker = '.', ms=10 * scale, alpha = 1)
             if label:
                 ax.text(user_pos[0]+d, user_pos[1]+d, str(iU))
 
+
+        if not axis:
+            plt.axis('off')
 
 
 
@@ -409,6 +406,29 @@ class Env_Multi_Agent_MNO(gym.Env):
         self.update_transactions()
 
 
+    def get_total_obs(self):
+        # output an n_agents x 2 layers image (for sites and users positions)
+        list_users = self.positions_users
+        list_sites = [prov.positions_sites for prov in self.providers]
+        clients = self.initial_affiliations
+        limits = self.limits
+        reso_p = 15
+        image = create_observation(list_users, list_sites, clients, limits, reso_p)
+        return image
+
+    def get_partial_obs(self):
+        # output an n_agents x 2 layers image (for sites and users positions)
+        # only a partial observation (for player i_agent)
+        image = self.get_total_obs()
+        list_obs = []
+        for i_player in range(self.n_agents):
+            image_i = image.copy()
+            for i in range(self.n_agents):
+                if i != i_player:
+                    image_i[:,:,self.n_agents + i] = 0
+            list_obs.append(image_i)
+        return list_obs
+
 
     def step(self, action_n):
         # actions_n = list of n_agents actions
@@ -423,7 +443,7 @@ class Env_Multi_Agent_MNO(gym.Env):
         self.transactions(list_transactions)
         self.update_transactions()
 
-        obs_n = [ np.array([]) for i_prov in range(self.n_agents)]
+        obs_n = self.get_total_obs()
         r_n = [ 0 for i_prov in range(self.n_agents)]
         if self.utilities is not None:
             r_n = self.utilities(self)
@@ -434,26 +454,81 @@ class Env_Multi_Agent_MNO(gym.Env):
 
 
 
+    def get_utilities(self):
+        r_n = [0 for i_prov in range(self.n_agents)]
+        if self.utilities is not None:
+            r_n = self.utilities(self)
+        return r_n
 
     def render(self, output="output.png", close = False):
         self.display(output, fig_size=(8,8),label=True, links = True)
 
 
 
+class Env_Multi_Agent_Sites_Users(Env_Multi_Agent_MNO):
+
+    def __init__(self, positions_sites, positions_users, clients,
+                     kinematics_users = None, max_per_sec = [[]], n_sections = [], angles_offset= [[]]):
+
+        n_agents = len(positions_sites)
+        providers = []
+        n_users = len(positions_users)
+        n_sites = sum([len(sites) for sites in positions_sites ])
+        #positions_users = random_users(n_users, sites, 0.8, xlim, ylim)
+        #clients = [ [i_prov for _ in range(int(n_users/n_agents))] for i_prov in range(n_agents)]
+
+        for i_prov in range(n_agents):
+            providers.append(Provider(i_prov, len(positions_sites[i_prov]), positions_sites[i_prov], n_agents,
+                                   max_per_section=max_per_sec[i_prov],
+                                   angles_offset_sites=angles_offset[i_prov], n_sections=n_sections[i_prov]))
+
+        super(Env_Multi_Agent_Sites_Users, self).__init__(n_agents, n_sites, n_users,
+                     providers, positions_users, clients,
+                     kinematics_users = kinematics_users)
+
+
+
+class Env_3A_5S_15U(Env_Multi_Agent_Sites_Users):
+
+        def __init__(self):
+
+            positions_sites = [ [(1, 1), (7, 6)],  [(4, 3.5)],  [(1, 6), (7, 1)] ]
+            n_agents = len(positions_sites)
+            sites = []
+            for s in positions_sites:
+                sites += s
+
+            r = 0.9
+            n_users = 30
+            positions_users = random_users(n_users, sites, r, (0 + r, 8 - r), (0 + r, 7 - r))
+            clients = []
+            for ip in range(n_agents):
+                clients += [ip for _ in range(int(n_users/n_agents))]
+
+            print(clients)
+            max_per_sec = [[10,10],[10],[10,10]]
+            n_sections = [3,3,3]
+            angles_offset = [[-30,-30],[-30],[-30,30]]
+
+
+            super(Env_3A_5S_15U, self).__init__(positions_sites, positions_users, clients,
+                     kinematics_users=None, max_per_sec=max_per_sec, n_sections=n_sections, angles_offset=angles_offset)
+
+            self.limits = [(0,8),(0,7)]
+
+
 class Env_3A_3S_9U_0(Env_Multi_Agent_MNO):
 
-    def __init__(self, max_per_sec = 10, n_sections = 3):
-        sitesA = [(2, 2)]
-        sitesB = [(6, 2)]
-        sitesC = [(4, 2+4*math.sin(math.pi/3))]
+    def __init__(self, max_per_sec = 10, n_sections = 3, positions_users = None):
+
+        positions_sites = [ [(2, 2)],  [(6, 2)],  [(4, 2+4*math.sin(math.pi/3))] ]
 
         n_agents = 3
         n_sites = 3
-        n_users = 9
 
-        sites1 = sitesA[:1]
-        sites2 = sitesB[:1]
-        sites3 = sitesC[:1]
+        sites1 = positions_sites[0]
+        sites2 = positions_sites[1]
+        sites3 = positions_sites[2]
 
         mno1 = Provider(0, len(sites1), sites1, n_agents, max_per_section=[max_per_sec] * len(sites1),
                         angles_offset_sites=[-30], n_sections=n_sections)
@@ -463,17 +538,20 @@ class Env_3A_3S_9U_0(Env_Multi_Agent_MNO):
                         angles_offset_sites=[-30], n_sections=n_sections)
 
         providers = [mno1, mno2, mno3]
-        positions_users = []
-        n_u = int(n_users/n_agents)
-        r = 1
-        for site, prov in zip([sites1, sites2, sites3], providers):
-            (xS, yS) = site[0]
-            for u in range(n_u):
-                #print((math.pi / 180) * prov.angles_offset_sites[0])
-                angle = 2*(u+0.5)*math.pi/n_u + (math.pi / 180) * prov.angles_offset_sites[0]
-                pos_U = ( xS + r*math.cos(angle) , yS + r*math.sin(angle)     )
-                positions_users.append(   pos_U    )
-        #positions_users = [(0.3, 1.3), (1, 0.3), (2.5, 2.3), (4, 0.3), (1.7, 1.3), (4.7, 1.3), (1.8, 3.5), (3.2, 3.5), (3.3, 1.3)]
+        if positions_users is None:
+            positions_users = []
+            n_u = 3
+            r = 1
+            for site, prov in zip([sites1, sites2, sites3], providers):
+                (xS, yS) = site[0]
+                for u in range(n_u):
+                    #print((math.pi / 180) * prov.angles_offset_sites[0])
+                    angle = 2*(u+0.5)*math.pi/n_u + (math.pi / 180) * prov.angles_offset_sites[0]
+                    pos_U = ( xS + r*math.cos(angle) , yS + r*math.sin(angle)     )
+                    positions_users.append(   pos_U    )
+
+        n_users = len(positions_users)
+        n_u = int(n_users/3)
 
         clients = [0 for _ in range(n_u)] + [1 for _ in range(n_u)] + [2 for _ in range(n_u)]
 
@@ -484,6 +562,36 @@ class Env_3A_3S_9U_0(Env_Multi_Agent_MNO):
 
         self.limits = [(0, 8), (0, 7)]
 
+
+
+
+class Env_2A_2S_2U(Env_Multi_Agent_MNO):
+
+    def __init__(self, max_per_sec = 10, n_sections = 3):
+
+
+        limits = [(0, 8), (0, 4)]
+        positions_sites = [[(2,2)],[(6,2)]]
+        positions_users = [(3,2.5),(5,1.5)]
+        clients = [1,0]
+
+        n_agents = 2
+        n_sites = sum([len(sites) for sites in positions_sites])
+        n_users = len(positions_users)
+
+        providers = []
+        angles_offset = [-60, 0]
+
+        for i_prov in range(n_agents):
+            providers.append(Provider(i_prov, len(positions_sites[i_prov]), positions_sites[i_prov], n_agents, max_per_section=[max_per_sec] * len(positions_sites[i_prov]),
+                        angles_offset_sites=[angles_offset[i_prov]], n_sections=n_sections))
+
+        super().__init__(n_agents, n_sites, n_users,
+                 providers, positions_users, clients,
+                 kinematics_users = None)
+
+
+        self.limits = limits
 
 
 
@@ -512,7 +620,9 @@ class Env_3A_3S_9U_2(Env_3A_3S_9U_0):
 
 class Env_3A_3S_xU_0(Env_3A_3S_9U_0):
 
-    def __init__(self, positions_users, clients):
+    def __init__(self):
+
+
         super(Env_3A_3S_xU_0, self).__init__()
         if len(positions_users) != len(clients):
             print('error : number of clients and positions_users')
@@ -524,17 +634,75 @@ class Env_3A_3S_xU_0(Env_3A_3S_9U_0):
 
 
 
-class Env_3A_3S_xU_Random(Env_3A_3S_xU_0):
-
-    def __init__(self, n_users):
-
-        n_users =  3*int(n_users/3)
-        sites = []
-        for prov in self.providers:
-            pass
-            sites.append()
-        #positions_users = random_users(n_users, self., r, x_lim, y_lim):
-
-        super(Env_3A_3S_xU_Random, self).__init__()
 
 
+class Env_3A_1S_9U(Env_Multi_Agent_Sites_Users):
+
+        def __init__(self):
+
+            positions_sites = [ [(3, 3)],  [(-1,-1)],  [(-1,-1)] ]
+            n_agents = len(positions_sites)
+            sites = []
+            for s in positions_sites:
+                sites += s
+
+            angles_offset = [[-30], [-30], [-30]]
+            positions_users = []
+            n_u = 9
+            r = 2
+            for u in range(n_u):
+                # print((math.pi / 180) * prov.angles_offset_sites[0])
+                xS, yS = positions_sites[0][0]
+                angle = 2 * (u + 0.5) * math.pi / n_u + (math.pi / 180) * angles_offset[0][0]
+                pos_U = (xS + r * math.cos(angle), yS + r * math.sin(angle))
+                positions_users.append(pos_U)
+
+            n_users = len(positions_users)
+
+            clients = [0,1,2]*3
+
+            max_per_sec = [[10],[0],[0]]
+            n_sections = [3,3,3]
+
+
+
+            super(Env_3A_1S_9U, self).__init__(positions_sites, positions_users, clients,
+                     kinematics_users=None, max_per_sec=max_per_sec, n_sections=n_sections, angles_offset=angles_offset)
+
+            self.limits = [(0,8),(0,7)]
+
+
+
+
+class Env_3A_3S_18U(Env_Multi_Agent_Sites_Users):
+
+        def __init__(self):
+
+            positions_sites = [ [(2, 2)],  [(6, 2)],  [(4, 2+4*math.sin(math.pi/3))] ]
+            n_agents = len(positions_sites)
+
+            angles_offset = [[-30], [-30], [-30]]
+            positions_users = []
+            n_u = 9
+            r = 1
+            for iP in range(n_agents):
+                for u in range(n_u):
+                    xS, yS = positions_sites[iP][0]
+                    angle = 2 * u * math.pi / n_u + (math.pi / 180) * angles_offset[iP][0]
+                    pos_U = (xS + r * math.cos(angle), yS + r * math.sin(angle))
+                    if u%3 != 0:
+                        positions_users.append(pos_U)
+
+            n_users = len(positions_users)
+            clients = [0,0,2,0,0,1,  1,2,1,1,0,1,   1,2,2,0,2,2   ]
+
+            max_per_sec = [[100],[100],[100]]
+            n_sections = [3,3,3]
+
+
+
+            super(Env_3A_3S_18U, self).__init__(positions_sites, positions_users, clients,
+                     kinematics_users=None, max_per_sec=max_per_sec, n_sections=n_sections, angles_offset=angles_offset)
+
+            self.utilities = basic_exp_utility
+            self.limits = [(0,8),(0,7)]

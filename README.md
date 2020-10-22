@@ -26,8 +26,8 @@ ENVIRONMENTS :
 This gym env contains:
 
 A : 3 agents, 3 sites, 9 users 
-1. 
-2.
+1. env_3A_3S_9U-v1
+2. env_3A_3S_9U-v2
 
 
 B : 3 agents, 3 sites, x users 
