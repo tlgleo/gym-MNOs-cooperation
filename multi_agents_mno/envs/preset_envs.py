@@ -4,7 +4,7 @@ from utils import partition, random_users, create_observation, separate_images
 from utility_functions import basic_utility, basic_utility_V2, basic_exp_utility
 from kinematics import Kinematics, modifiy_position
 
-class Env_3A_5S_15U(Env_Multi_Agent_Sites_Users):
+class Env_3A_5S_30U(Env_Multi_Agent_Sites_Users):
 
         def __init__(self):
 
@@ -27,7 +27,7 @@ class Env_3A_5S_15U(Env_Multi_Agent_Sites_Users):
             angles_offset = [[-30,-30],[-30],[-30,30]]
 
 
-            super(Env_3A_5S_15U, self).__init__(positions_sites, positions_users, clients,
+            super(Env_3A_5S_30U, self).__init__(positions_sites, positions_users, clients,
                      kinematics_users=None, max_per_sec=max_per_sec, n_sections=n_sections, angles_offset=angles_offset)
 
             self.limits = [(0,8),(0,7)]
